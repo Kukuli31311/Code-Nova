@@ -1,0 +1,86 @@
+:root{--bg:#f1efff;--card:#fff;--ink:#1d1646;--mute:#625c85;--line:#d9d4f5;--main:#3b2fa0;--sun:#ffd23f;--ok:#12b5a6;--no:#ff5d73;--okbg:#d8f6f2;--nobg:#ffe1e5;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root{--bg:#141030;--card:#201a4a;--ink:#f0eeff;--mute:#aaa4d6;--line:#352d6e;--main:#8f84ff;--okbg:#0f4a45;--nobg:#5a2230}}
+*,*:before,*:after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.55 "Nunito","Trebuchet MS",system-ui,sans-serif}
+#app{max-width:860px;margin:0 auto;padding:24px 18px 48px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:clamp(34px,8vw,48px);line-height:1.05;margin:8px 0 0}
+h2,h3{line-height:1.2;margin:0}
+.sub{color:var(--mute);margin:0}
+:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+button{font:inherit;cursor:pointer;color:inherit}
+.btn{border:0;border-radius:14px;padding:13px 20px;font-weight:700;background:var(--main);color:#fff;align-self:flex-start}
+.btn.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
+.icons{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.ic{font-size:34px;padding:12px 0;border:3px solid var(--line);border-radius:18px;background:var(--card)}
+.ic[aria-pressed="true"]{border-color:var(--main);background:var(--sun);transform:scale(1.06)}
+input{font:inherit;padding:13px 16px;border-radius:14px;border:2px solid var(--line);background:var(--card);color:var(--ink)}
+
+/* Orta ekranlar (ders, alistirma) */
+.lv{width:100%;max-width:660px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.lv.mid{align-items:center;text-align:center}
+.lv.mid .row{justify-content:center}
+
+/* Ana sayfa: dersler yan yana */
+.lessons{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.card{text-align:center;padding:18px 16px;border-radius:16px;border:2px solid var(--line);background:var(--card);font-weight:700;font-size:18px}
+.card:hover:not(:disabled){border-color:var(--main)}
+.card:disabled{opacity:.5;cursor:not-allowed}
+.card.gold{background:var(--sun);color:#1d1646;border-color:var(--sun)}
+
+/* Ders anlatimi */
+.slide{font-size:19px;max-width:620px}
+.slide p{margin:0 0 12px}
+code{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-family:"JetBrains Mono",ui-monospace,Consolas,monospace}
+.codebox{margin:0;width:100%;text-align:left;background:#120b2e;color:#e9e2ff;border:1px solid #3b2fa0;border-radius:14px;padding:14px 16px;overflow-x:auto}
+.codebox code{background:none;border:0;padding:0;color:inherit;font-size:15px;line-height:1.7}
+.hard{background:var(--nobg);border-left:6px solid var(--no);border-radius:12px;padding:14px 16px;text-align:left;width:100%}
+.row{display:flex;gap:10px}
+
+/* Streak ve gorevler */
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.top h1{margin:0}
+.streak{display:inline-flex;align-items:center;gap:6px;background:var(--sun);color:#1d1646;border-radius:999px;padding:6px 16px;font-size:22px;font-weight:800}
+.board,.tasks{background:var(--card);border-radius:16px;padding:16px 20px}
+.board ol{margin:8px 0 0;padding-left:22px}
+.tasks ul{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.tasks li.done{color:var(--mute);text-decoration:line-through}
+.tasks p{margin:10px 0 0}
+
+/* Sorular */
+.qk{display:flex;justify-content:space-between;color:var(--mute);font-size:15px}
+.tm{font-size:22px}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{text-align:left;padding:14px 16px;border-radius:14px;border:2px solid var(--line);background:var(--card);font-weight:600}
+.opt:hover:not(:disabled){border-color:var(--main)}
+.opt.sel{border-color:var(--main);background:var(--sun);color:#1d1646}
+.opt.ok{background:var(--okbg);border-color:var(--ok)}
+.opt.no{background:var(--nobg);border-color:var(--no)}
+.fb{background:var(--card);border-radius:12px;padding:12px 16px;margin:0 0 12px}
+.res{text-align:center}
+.big{font-size:72px;font-weight:800;line-height:1}
+
+/* Karsilama ekrani */
+body.welcome{background:#05030d;overflow-x:hidden}
+body.welcome #app{max-width:none;padding:0;gap:0}
+.hero{position:relative;overflow:hidden;min-height:100vh;min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:24px;text-align:center;background:radial-gradient(circle at 50% 38%,#4a22b8 0%,#1b0d4a 42%,#05030d 100%);color:#fff}
+.hero>*:not(.sn){position:relative;z-index:1}
+.nova{font-family:"Space Grotesk","Nunito",system-ui,sans-serif;font-weight:600;font-size:clamp(26px,5vw,48px);line-height:1.15;margin:0;max-width:900px;letter-spacing:-.01em;text-shadow:0 0 14px #8f5bff55}
+.hero .sub{color:#cbbcff;font-size:20px}
+.btn.go{align-self:center;font-size:20px;padding:15px 34px;background:linear-gradient(135deg,#8f5bff,#5b2bd6);box-shadow:0 0 28px #6a2cff99}
+.sn{position:absolute;z-index:0;font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;font-size:clamp(13px,2.2vw,20px);color:#b69cff;opacity:.45;pointer-events:none;white-space:nowrap;animation:fl 7s ease-in-out infinite alternate}
+@keyframes fl{to{transform:translateY(-12px)}}
+.s0{left:6%;top:14%}.s1{left:82%;top:10%}.s2{left:68%;top:24%}.s3{left:7%;top:72%}
+.s4{left:72%;top:76%}.s5{left:40%;top:7%}.s6{left:10%;top:40%}.s7{left:84%;top:48%}
+.s8{left:28%;top:88%}.s9{left:56%;top:90%}.s10{left:20%;top:24%}.s11{left:88%;top:86%}
+.s1,.s4,.s7{animation-delay:-2s}.s2,.s5,.s8{animation-delay:-4s}
+
+/* Dil sekmeleri */
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{padding:10px 18px;border-radius:999px;border:2px solid var(--line);background:var(--card);font-weight:700}
+.tab:hover:not(:disabled){border-color:var(--main)}
+.tab[aria-pressed="true"]{background:var(--main);border-color:var(--main);color:#fff}
+.tab:disabled{opacity:.5;cursor:not-allowed}
+
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
