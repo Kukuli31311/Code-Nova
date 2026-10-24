@@ -10,13 +10,40 @@ type St = {
   board: Row[]
   streak: { n: number; last: string }
   today: { d: string; n: number }
-  mute: boolean; badges: Record<string, boolean>
+  mute: boolean; badges: Record<string, boolean>; theme: string
 }
 
 const KEY = 'bulut-akademi-v1'
-let S: St = { icon: '', name: '', cur: 'py', fin: {}, passed: {}, tries: {}, board: [], streak: { n: 0, last: '' }, today: { d: '', n: 0 }, mute: false, badges: {} }
+let S: St = { icon: '', name: '', cur: 'py', fin: {}, passed: {}, tries: {}, board: [], streak: { n: 0, last: '' }, today: { d: '', n: 0 }, mute: false, badges: {}, theme: '' }
 try { S = { ...S, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') } } catch { /* yoksay */ }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)) } catch { /* yoksay */ } }
+
+// Temalar: renkler style.css içinde. Burada sadece liste ve uygulama var.
+type Voice = { wave: OscillatorType; k: number; len: number; bell: boolean }
+type Theme = { id: string; name: string; desc: string; say: string; meta: string; paper: string[]; v: Voice }
+const THEMES: Theme[] = [
+  { id: 'standart', name: 'Standart', desc: 'Kareli defter hali. Telefonun koyu moddaysa o da koyu olur.', say: 'Klasik kareli defter. Bunu çok severim.', meta: '',
+    paper: ['#6a3df0', '#ffc933', '#0f9d7a', '#ff5d7a', '#37a3ff'], v: { wave: 'triangle', k: 1, len: 1, bell: false } },
+  { id: 'terminal', name: 'Retro terminal', desc: 'Siyah ekran, yeşil yazı. Sanki gerçekten hacklıyorsun.', say: 'Hacker modu. 01001000', meta: '#040906',
+    paper: ['#2cff7d', '#ffb000', '#5cffb0', '#ff5470', '#b8ffd0'], v: { wave: 'square', k: 1, len: 0.8, bell: false } },
+  { id: 'sunset', name: 'Gün batımı', desc: 'Turuncu, pembe ve sarı. Sıcacık bir tema.', say: 'Ne güzel renkler, tam akşam üstü.', meta: '#fff1e3',
+    paper: ['#d6336c', '#ffb627', '#ff7a45', '#ff9ec4', '#7b2d8e'], v: { wave: 'sine', k: 0.84, len: 1.6, bell: false } },
+  { id: 'pastel', name: 'Pastel şeker', desc: 'Pembe, mor ve nane yeşili. Kalem kutusu gibi.', say: 'Şeker gibi oldu, tatlı mı tatlı.', meta: '#fff6fb',
+    paper: ['#7a56d6', '#ffc4e1', '#9ff0cf', '#c9bdf0', '#ffd5a0'], v: { wave: 'sine', k: 1.25, len: 1.2, bell: true } },
+]
+let paper = THEMES[0].paper
+let voice = THEMES[0].v, curTheme = 'standart'
+function applyTheme(id: string) {
+  const t = THEMES.find(x => x.id === id) ?? THEMES[0]
+  const root = document.documentElement
+  if (t.id === 'standart') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t.id)
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach(m => {
+    if (!m.dataset.orig) m.dataset.orig = m.content
+    m.content = t.meta || m.dataset.orig
+  })
+  paper = t.paper; voice = t.v; curTheme = t.id
+}
+applyTheme(S.theme)
 
 const app = document.getElementById('app')!
 const el = (tag: string, cls = '', html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; e.innerHTML = html; return e }
@@ -77,7 +104,10 @@ const NOVA_LINES: Record<string, string[]> = {
   learn: ['Kodu ezberleme, ne yaptığını anla.', 'Zor kısım kutusuna dikkat!', 'Hata yapmak öğrenmenin parçası.', 'Takılırsan bir önceki sayfaya dönebilirsin.'],
   games: ['Oyunlar yolda!', 'Yakında beraber oynarız.'],
 }
-mascotBtn.onclick = () => say(pick(NOVA_LINES[page] ?? NOVA_LINES['']), pick<Mood>(['happy', 'wink', 'cheer']), 3500)
+mascotBtn.onclick = () => {
+  const m = pick<Mood>(['happy', 'wink', 'cheer'])
+  say(pick(NOVA_LINES[page] ?? NOVA_LINES['']), m, 3500); novaVoice(m)
+}
 
 const FLAME = '<svg class="flame" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">'
   + '<path d="M12 2s5.5 4.6 5.5 10.2A5.5 5.5 0 0 1 6.5 12.2c0-2 1-3.6 2.2-4.8.2 1.8.9 2.8 2 2.8C10.6 7.6 10 4.6 12 2z" fill="currentColor"/>'
@@ -98,9 +128,11 @@ function chrome(): HTMLElement {
       nav.append(b)
     })
     const snd = btn(S.mute ? 'Ses kapalı' : 'Ses açık', () => { S.mute = !S.mute; save(); snd.textContent = S.mute ? 'Ses kapalı' : 'Ses açık' }, 'nl')
+    const back = page === 'learn' ? home : page === 'games' ? games : hub
+    const thm = btn('Tema', go(() => themePick(back, back)), 'nl')
     const streak = el('span', 'streak', `${FLAME}<b>${S.streak.n}</b> gün`)
     streak.title = 'Üst üste giriş günü'
-    bar.append(nav, streak, snd, btn(`${S.icon} ${S.name}`, go(start), 'me'))
+    bar.append(nav, streak, snd, thm, btn(`${S.icon} ${S.name}`, go(start), 'me'))
   }
   const h = el('header', 'bar'); h.append(bar); return h
 }
@@ -142,34 +174,158 @@ function tick() {
   if (S.streak.n >= 3) award('streak3')
 }
 
-// Ses efektleri (dosya gerekmez, tarayıcı üretir)
-let ac: AudioContext | undefined
-function tone(f: number, t = 0, d = 0.15) {
-  if (S.mute) return
+// ───────── Ses ─────────
+// Hepsini tarayıcı üretir, dosya yok. Her temanın kendi "sesi" var (voice): defter = yumuşak, terminal = 8-bit, gün batımı = sıcak, pastel = çan.
+type Sfx = 'click' | 'hover' | 'tab' | 'next' | 'back' | 'open' | 'start' | 'pick' | 'ok' | 'no' | 'win' | 'perfect' | 'badge'
+  | 'tick' | 'stamp' | 'count' | 'type' | 'enter' | 'out' | 'copy' | 'nope' | 'theme'
+const HOVER_SES = true // fare üstüne gelince çıkan çok hafif tıkırtı. Rahatsız ederse false yap.
+let ac: AudioContext | undefined, out: GainNode | undefined, nbuf: AudioBuffer | undefined
+function ctx(): AudioContext | undefined {
+  if (S.mute) return undefined
+  // Tarayıcı, kullanıcı sayfaya dokunmadan ses açtırmaz
+  const ua = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation
+  if (ua && !ua.hasBeenActive) return undefined
   try {
-    if (!ac) ac = new AudioContext()
+    if (!ac) {
+      ac = new AudioContext()
+      out = ac.createGain(); out.gain.value = 0.9
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 8000
+      const cp = ac.createDynamicsCompressor(); cp.threshold.value = -20; cp.ratio.value = 4
+      out.connect(lp); lp.connect(cp); cp.connect(ac.destination)
+    }
     if (ac.state === 'suspended') void ac.resume()
-    const o = ac.createOscillator(), g = ac.createGain(), s = ac.currentTime + t
-    o.type = 'triangle'; o.frequency.value = f
-    g.gain.setValueAtTime(0.15, s); g.gain.exponentialRampToValueAtTime(0.001, s + d)
-    o.connect(g); g.connect(ac.destination); o.start(s); o.stop(s + d)
-  } catch { /* yoksay */ }
+    return ac
+  } catch { return undefined }
 }
-function sfx(k: 'ok' | 'no' | 'win') {
-  if (k === 'ok') { tone(660); tone(880, 0.1) }
-  else if (k === 'no') tone(180, 0, 0.3)
-  else [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.12, 0.2))
+type NoteOpt = { w?: OscillatorType; slide?: number; att?: number; len?: number; bell?: boolean; raw?: boolean }
+// Tek nota: f Hz, t sn sonra başla, d sn sürsün, v ses seviyesi
+function note(f: number, t = 0, d = 0.15, v = 0.1, o: NoteOpt = {}) {
+  const a = ctx(); if (!a || !out) return
+  const s = a.currentTime + t + 0.004
+  const dur = Math.max(0.03, d * (o.len ?? voice.len))
+  const fr = o.raw ? f : f * voice.k
+  const wave = o.w ?? voice.wave
+  const osc1 = (freq: number, vol: number, w: OscillatorType) => {
+    const osc = a.createOscillator(), g = a.createGain(), att = o.att ?? 0.006
+    osc.type = w; osc.frequency.setValueAtTime(freq, s)
+    if (o.slide) osc.frequency.exponentialRampToValueAtTime(Math.max(40, freq * o.slide), s + dur)
+    g.gain.setValueAtTime(0.0001, s)
+    g.gain.linearRampToValueAtTime(vol, s + att)
+    g.gain.exponentialRampToValueAtTime(0.0001, s + Math.max(dur, att + 0.02))
+    osc.connect(g); g.connect(out!); osc.start(s); osc.stop(s + Math.max(dur, att + 0.02) + 0.03)
+  }
+  osc1(fr, v * (wave === 'square' || wave === 'sawtooth' ? 0.45 : 1), wave)
+  if (o.bell ?? voice.bell) osc1(fr * 2.76, v * 0.25, 'sine')
+}
+// Gürültü patlaması: tıklama, yazı tuşu, "şak" gibi sesler için
+function hiss(t = 0, d = 0.04, v = 0.06, f = 3000, q = 1, type: BiquadFilterType = 'bandpass', sweep = 0) {
+  const a = ctx(); if (!a || !out) return
+  if (!nbuf) {
+    nbuf = a.createBuffer(1, Math.floor(a.sampleRate * 0.5), a.sampleRate)
+    const d0 = nbuf.getChannelData(0)
+    for (let i = 0; i < d0.length; i++) d0[i] = Math.random() * 2 - 1
+  }
+  const s = a.currentTime + t + 0.004
+  const src = a.createBufferSource(), fl = a.createBiquadFilter(), g = a.createGain()
+  src.buffer = nbuf; fl.type = type; fl.frequency.setValueAtTime(f, s); fl.Q.value = q
+  if (sweep) fl.frequency.exponentialRampToValueAtTime(Math.max(60, f * sweep), s + d)
+  g.gain.setValueAtTime(v, s); g.gain.exponentialRampToValueAtTime(0.0001, s + d)
+  src.connect(fl); fl.connect(g); g.connect(out); src.start(s); src.stop(s + d + 0.02)
+}
+const SCALE = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16]
+function sfx(k: Sfx, n = 0) {
+  switch (k) {
+    case 'click': hiss(0, 0.03, 0.06, 2600, 1.5); note(700, 0, 0.05, 0.035, { w: 'sine' }); break
+    case 'hover': if (HOVER_SES) hiss(0, 0.018, 0.016, 6000, 0.8, 'highpass'); break
+    case 'tab': note(660, 0, 0.07, 0.05); note(990, 0.045, 0.08, 0.045); break
+    case 'next': note(520, 0, 0.07, 0.06); note(780, 0.05, 0.12, 0.06); break
+    case 'back': note(780, 0, 0.07, 0.05); note(520, 0.05, 0.12, 0.05); break
+    case 'open': hiss(0, 0.07, 0.05, 1200, 1, 'bandpass', 3); note(392, 0, 0.09, 0.06); note(587, 0.06, 0.14, 0.06); break
+    case 'start': [392, 523, 659, 784].forEach((f, i) => note(f, i * 0.07, 0.22, 0.07)); break
+    case 'pick': hiss(0, 0.02, 0.04, 3500, 2); note(440 * 2 ** (n / 12), 0, 0.1, 0.07); break
+    case 'ok': {
+      // Üst üste doğru bildikçe nota yükselir
+      const f = 523.25 * 2 ** (SCALE[Math.min(n, SCALE.length - 1)] / 12)
+      note(f, 0, 0.14, 0.09); note(f * 1.5, 0.07, 0.2, 0.08)
+      if (n >= 2) note(f * 2, 0.14, 0.2, 0.05, { bell: true })
+      break
+    }
+    case 'no': note(220, 0, 0.22, 0.09, { w: 'sine', slide: 0.72, len: 1 }); note(165, 0.09, 0.3, 0.07, { w: 'sine', slide: 0.8, len: 1 }); break
+    case 'win':
+      ;[523, 659, 784, 1047].forEach((f, i) => note(f, i * 0.1, 0.25, 0.08))
+      ;[523, 659, 784, 1319].forEach(f => note(f, 0.4, 0.6, 0.05, { bell: f > 1000 }))
+      break
+    case 'perfect': [1568, 1976, 2349, 3136].forEach((f, i) => note(f, 0.5 + i * 0.07, 0.3, 0.04, { w: 'sine', bell: true, raw: true })); break
+    case 'badge': [1319, 1760, 2093].forEach((f, i) => note(f, i * 0.09, 0.5, 0.06, { w: 'sine', bell: true, len: 1.4, raw: true })); break
+    case 'tick': hiss(0, 0.02, 0.05, 3000, 3); note(700 + (5 - n) * 90, 0, 0.06, 0.06, { w: 'triangle', len: 1 }); break
+    case 'stamp': note(120, 0, 0.22, 0.22, { w: 'sine', slide: 0.5, len: 1 }); hiss(0, 0.09, 0.12, 500, 0.7, 'lowpass'); break
+    case 'count': note(500 + 800 * n, 0, 0.035, 0.03, { w: 'sine', len: 1 }); break
+    case 'type':
+      hiss(0, 0.014, 0.045, 3800 + Math.random() * 1800, 2.5)
+      if (curTheme === 'terminal') note(1500 + Math.random() * 400, 0, 0.02, 0.025, { len: 1 })
+      break
+    case 'enter': hiss(0, 0.05, 0.07, 2000, 1.5); note(330, 0, 0.07, 0.05); break
+    case 'out': note(880, 0, 0.05, 0.04, { w: 'sine' }); break
+    case 'copy': note(988, 0, 0.05, 0.06); note(1319, 0.05, 0.08, 0.06); break
+    case 'nope': note(180, 0, 0.09, 0.07, { w: 'triangle', slide: 0.8, len: 1 }); note(180, 0.11, 0.09, 0.07, { w: 'triangle', slide: 0.8, len: 1 }); break
+    case 'theme':
+      if (curTheme === 'terminal') { hiss(0, 0.06, 0.05, 4000, 1, 'highpass'); [220, 330, 440, 660, 880].forEach((f, i) => note(f, i * 0.05, 0.1, 0.07)) }
+      else if (curTheme === 'sunset') [262, 330, 392, 523].forEach((f, i) => note(f, i * 0.02, 0.9, 0.06, { att: 0.12, len: 1 }))
+      else if (curTheme === 'pastel') [523, 659, 784, 1047, 1319].forEach((f, i) => note(f, i * 0.07, 0.3, 0.06))
+      else [392, 494, 587, 784].forEach((f, i) => note(f, i * 0.08, 0.2, 0.07))
+      break
+  }
+}
+// Nova'nın sesi: temadan bağımsız, hep aynı tatlı üçgen dalga
+function novaVoice(m: Mood) {
+  const o = { w: 'triangle' as OscillatorType, raw: true }
+  if (m === 'cheer') [523, 659, 784, 1047].forEach((f, i) => note(f, i * 0.055, 0.1, 0.07, o))
+  else if (m === 'wink') { note(880, 0, 0.06, 0.06, o); note(1175, 0.06, 0.08, 0.06, o) }
+  else if (m === 'sad') { note(440, 0, 0.16, 0.07, { ...o, slide: 0.75 }); note(330, 0.14, 0.22, 0.06, o) }
+  else if (m === 'think') { note(392, 0, 0.1, 0.06, o); note(392, 0.12, 0.1, 0.05, o); note(523, 0.26, 0.14, 0.06, o) }
+  else if (m === 'wow') note(400, 0, 0.2, 0.08, { ...o, slide: 2.2 })
+  else { note(660, 0, 0.08, 0.07, o); note(880, 0.07, 0.1, 0.07, o) }
+}
+// Üst/ses düğmesi: karşılama ve tema ekranında da ses açılıp kapanabilsin
+function soundBtn(cls = 'btn alt'): HTMLButtonElement {
+  const b = btn(S.mute ? 'Ses kapalı' : 'Ses açık', () => { S.mute = !S.mute; save(); b.textContent = S.mute ? 'Ses kapalı' : 'Ses açık' }, cls)
+  return b
 }
 
-// Konfeti: renkli kağıt parçaları
-const PAPER = ['#6a3df0', '#ffc933', '#0f9d7a', '#ff5d7a', '#37a3ff']
+// Tüm site için ortak sesler: her buton tıklaması ve fareyle üstüne gelme
+document.addEventListener('click', e => {
+  if (!(e.target instanceof Element)) return
+  const b = e.target.closest('button, a') as HTMLElement | null
+  if (!b || (b as HTMLButtonElement).disabled) return
+  const c = b.classList
+  if (c.contains('opt') || c.contains('tp-card') || c.contains('mascot')) return // bunların sesi kendi kodunda
+  const t = b.textContent ?? ''
+  if (c.contains('ic')) sfx('pick', 2 * [...(b.parentElement?.children ?? [])].indexOf(b))
+  else if (c.contains('go') || t === 'Tamam, bu olsun' || t === 'Başla') sfx('start')
+  else if (/^(İleri|Alıştırmaya geç|Sonraki soru|Sonucu gör)$/.test(t)) sfx('next')
+  else if (/^(Geri|Vazgeç)$/.test(t)) sfx('back')
+  else if (c.contains('nl') || c.contains('tab')) sfx('tab')
+  else if (c.contains('cp')) sfx('copy')
+  else if (c.contains('tile') || c.contains('step') || c.contains('final') || c.contains('me')) sfx('open')
+  else sfx('click')
+})
+let lastHover: Element | null = null
+document.addEventListener('pointerover', e => {
+  if (e.pointerType !== 'mouse' || !(e.target instanceof Element)) return
+  const t = e.target.closest('.tile,.step,.tp-card,.final,.btn,.nl,.tab')
+  if (t === lastHover) return
+  lastHover = t
+  if (t && !(t as HTMLButtonElement).disabled) sfx('hover')
+})
+
+// Konfeti: renkli kağıt parçaları (renkler temadan gelir)
 function confetti() {
   if (calm) return
   const c = el('div', 'confetti'); c.setAttribute('aria-hidden', 'true')
   for (let i = 0; i < 44; i++) {
     const p = el('span')
     p.style.left = `${Math.random() * 100}%`
-    p.style.background = PAPER[i % PAPER.length]
+    p.style.background = paper[i % paper.length]
     p.style.width = `${6 + Math.random() * 6}px`
     p.style.height = `${10 + Math.random() * 8}px`
     p.style.animationDelay = `${Math.random() * 0.8}s`
@@ -183,8 +339,10 @@ function confetti() {
 function count(node: HTMLElement, to: number) {
   if (calm || to === 0) { node.textContent = String(to); return }
   const t0 = performance.now()
+  let lastT = 0
   const step = (t: number) => {
     const p = Math.min(1, (t - t0) / 900)
+    if (p < 1 && t - lastT > 75) { lastT = t; sfx('count', p) }
     node.textContent = String(Math.round(to * (1 - (1 - p) ** 3)))
     if (p < 1 && node.isConnected) requestAnimationFrame(step)
     else node.textContent = String(to)
@@ -214,6 +372,7 @@ function award(id: string) {
   const b = BADGES.find(x => x.id === id)
   if (!b) return
   S.badges[id] = true; save()
+  setTimeout(() => sfx('badge'), 900)
   const t = txt('div', 'toast', `${b.i} Yeni rozet: ${b.n}`); t.setAttribute('role', 'status')
   document.body.append(t); setTimeout(() => t.remove(), 3200)
 }
@@ -221,6 +380,39 @@ function badges() {
   const w = el('section', 'tasks', '<h2>Rozetlerim</h2>'), d = el('div', 'badges')
   BADGES.forEach(b => { const x = txt('span', S.badges[b.id] ? 'bd' : 'bd lock', S.badges[b.id] ? `${b.i} ${b.n}` : `🔒 ${b.d}`); x.title = b.d; d.append(x) })
   w.append(d); return w
+}
+
+// Tema seçici: ilk girişte ve "Tema" düğmesinden açılır. Karta tıklayınca tema hemen denenir.
+const MINI = '<span class="m-bar"><i>{ }</i>Code Nova</span>'
+  + '<span class="m-body"><span class="m-tile">Öğren</span>'
+  + '<span class="m-side"><span class="m-chip">3 gün</span><span class="m-code"><b>for</b> i <b>in</b> 3:<br>print(<u>"selam"</u>)</span></span></span>'
+function themePick(done: () => void, back?: () => void) {
+  stop(); page = ''; onKey = null; quiet()
+  document.body.classList.remove('welcome')
+  document.title = 'Tema seç · Code Nova'
+  const before = S.theme || 'standart'
+  let sel = before
+  const grid = el('div', 'tp-grid'); grid.setAttribute('role', 'group'); grid.setAttribute('aria-label', 'Tema')
+  const cards: [string, HTMLButtonElement][] = []
+  THEMES.forEach(t => {
+    const b = el('button', 'tp-card') as HTMLButtonElement; b.type = 'button'
+    const mini = el('span', 'tp-mini', MINI); mini.dataset.theme = t.id; mini.setAttribute('aria-hidden', 'true')
+    b.append(mini, txt('span', 'tp-name', t.name), txt('span', 'tp-desc', t.desc))
+    b.setAttribute('aria-pressed', String(t.id === sel))
+    b.onclick = () => {
+      sel = t.id; applyTheme(sel); sfx('theme')
+      cards.forEach(([id, c]) => c.setAttribute('aria-pressed', String(id === sel)))
+      say(t.say, 'wink', 3500)
+    }
+    cards.push([t.id, b]); grid.append(b)
+  })
+  const row = el('div', 'row')
+  row.append(btn('Tamam, bu olsun', () => { S.theme = sel; save(); done() }))
+  if (back) row.append(btn('Vazgeç', () => { applyTheme(before); back() }, 'btn alt'))
+  app.replaceChildren(wrap('tp', txt('h1', '', 'Hangi temayı istiyorsun?'),
+    txt('p', 'sub', 'Birine tıkla, hemen dener. Beğenmezsen sonra üstteki Tema düğmesinden değiştirirsin.'), grid, row), wrap('tp-fabs', soundBtn()))
+  window.scrollTo(0, 0)
+  say('Hangisi senin tarzın? Tıkla, bakalım nasıl duruyor.', 'wink', 6000)
 }
 
 function welcome() {
@@ -244,12 +436,13 @@ function welcome() {
     let k = 0, j = 0
     const printOut = () => {
       if (!live()) return
-      j++; outPre.textContent = outLines.slice(0, j).join('\n')
+      j++; sfx('out'); outPre.textContent = outLines.slice(0, j).join('\n')
       if (j < outLines.length) setTimeout(printOut, 380)
     }
     const typeNext = () => {
       if (!live()) return
       k++
+      { const ch = src[k - 1]; if (ch === '\n') sfx('enter'); else if (ch !== ' ') sfx('type') }
       codeEl.innerHTML = hl(src.slice(0, k)) + caret
       if (k < src.length) setTimeout(typeNext, src[k - 1] === '\n' ? 280 : 40 + Math.random() * 55)
       else setTimeout(() => { if (live()) { codeEl.innerHTML = hl(src); printOut() } }, 550)
@@ -268,7 +461,7 @@ function welcome() {
   const t = wrap('hero-t', h,
     txt('p', 'sub', 'Python, Kotlin, Swift ve C# öğren. Her dersten sonra alıştırma çöz, sonunda final yarışmasında puan topla.'),
     btn('Ana sayfaya git', () => (S.name ? hub() : start()), 'btn go'))
-  app.replaceChildren(wrap('hero', deco, t, win))
+  app.replaceChildren(wrap('hero', deco, t, win), wrap('tp-fabs', soundBtn(), btn('Tema', () => themePick(welcome, welcome), 'btn alt')))
   document.body.classList.add('welcome')
   say('Merhaba! Ben Nova. Beraber kod yazacağız!', 'cheer', 6000)
 }
@@ -287,7 +480,7 @@ function start() {
   })
   const begin = () => {
     const n = inp.value.trim()
-    if (!n) { inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); inp.focus(); return }
+    if (!n) { sfx('nope'); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); inp.focus(); return }
     S.icon = icon; S.name = n; save(); hub()
   }
   inp.oninput = upd
@@ -408,8 +601,8 @@ function lesson(l: Lesson, i: number) {
   if (i === 0) say('Kırmızı kutudaki zor kısma özellikle dikkat et!', 'think')
   else mood('happy')
   onKey = e => {
-    if (e.key === 'ArrowRight') { if (last) exercise(l); else lesson(l, i + 1) }
-    else if (e.key === 'ArrowLeft') { if (i) lesson(l, i - 1); else home() }
+    if (e.key === 'ArrowRight') { sfx('next'); if (last) exercise(l); else lesson(l, i + 1) }
+    else if (e.key === 'ArrowLeft') { sfx('back'); if (i) lesson(l, i - 1); else home() }
   }
 }
 
@@ -423,13 +616,13 @@ function exercise(l: Lesson) {
       S.passed[l.id] = true
     } else S.tries[l.id] = n + 1
     save()
-    if (good) { award('first'); sfx('win'); if (ok === 5) { award('perfect'); confetti() } }
+    if (good) { award('first'); sfx('win'); if (ok === 5) { award('perfect'); sfx('perfect'); confetti() } }
     const msg = ok === 5 ? pick(['Tam puan! Konuyu çok iyi anlamışsın.', 'Hiç hata yok! Harikasın.', 'Kusursuz! Sıradaki konuya hazırsın.'])
       : good ? 'Çok iyi! Küçük bir hata var ama devam edebilirsin.' : 'Bu konuya kısa bir tekrar bakalım.'
     const num = el('span'), big = el('div', 'big'); big.append(num, txt('span', 'of', '/5'))
     show(wrap('lv end', txt('div', `stamp ${good ? 'yes' : 'no'}`, good ? (ok === 5 ? 'Tam puan!' : 'Geçtin!') : 'Bir daha!'),
       wrap('res', big, txt('p', '', msg)), good ? btn('Derslere dön', home) : btn('Tekrar konusuna git', () => review(l))))
-    count(num, ok)
+    count(num, ok); setTimeout(() => sfx('stamp'), 260)
     if (good) say(ok === 5 ? 'Tam puan! Muhteşemsin!' : 'Aferin, geçtin!', 'cheer', 5000)
     else say('Olsun! Kısa bir tekrardan sonra yaparsın.', 'think', 5000)
   })
@@ -452,14 +645,14 @@ function finalQ(T: Track) {
     const big = el('div', 'big')
     show(wrap('lv end', txt('div', `stamp ${ok >= PASS ? 'yes' : 'no'}`, ok >= PASS ? 'Final geçildi!' : 'Az kaldı!'),
       wrap('res', big), txt('p', '', `${ok}/10 doğru. Puan, doğru cevap ve hız bonusundan oluşur.`), txt('p', 'sub', msg), board(), btn('Derslere dön', home)))
-    count(big, pts)
+    count(big, pts); setTimeout(() => sfx('stamp'), 260)
     if (ok >= PASS) say('Final geçildi! Çok iyisin!', 'cheer', 6000)
     else say('Az kaldı! Tekrar deneyince olur.', 'think', 5000)
   })
 }
 
 function run(title: string, qs: Q[], timed: boolean, done: (ok: number, pts: number) => void) {
-  let i = 0, ok = 0, pts = 0
+  let i = 0, ok = 0, pts = 0, combo = 0
   const ask = () => {
     const q = qs[i]; let left = 20, locked = false; const picked = new Set<number>()
     const tm = txt('b', 'tm', timed ? `${left} sn` : '')
@@ -473,7 +666,8 @@ function run(title: string, qs: Q[], timed: boolean, done: (ok: number, pts: num
       tfill.style.transition = 'none'; tfill.style.width = `${(left / 20) * 100}%`
       const right = c.size === q.a.length && q.a.every(n => c.has(n))
       if (right) { ok++; if (timed) pts += 500 + left * 25 }
-      sfx(right ? 'ok' : 'no')
+      combo = right ? combo + 1 : 0
+      sfx(right ? 'ok' : 'no', combo - 1)
       if (late) say('Süre doldu! Bir dahaki sefere.', 'sad', 3000)
       else if (right) say(pick(['Doğru!', 'Harika!', 'Aynen öyle!', 'Süpersin!']), 'cheer', 2200)
       else say(pick(['Sorun değil, açıklamayı oku.', 'Olsun, bundan öğreniriz.', 'Yaklaştın!']), 'sad', 3000)
@@ -482,12 +676,12 @@ function run(title: string, qs: Q[], timed: boolean, done: (ok: number, pts: num
       const f = el('p', 'fb'); f.append(txt('b', '', late ? 'Süre doldu. ' : right ? pick(['Doğru! ', 'Aferin! ', 'Süper! ']) : 'Olmadı. '), document.createTextNode(q.x))
       const nb = btn(i + 1 < qs.length ? 'Sonraki soru' : 'Sonucu gör', nextQ)
       fb.replaceChildren(f, nb); nb.focus()
-      onKey = e => { if (e.key === 'ArrowRight') nextQ() }
+      onKey = e => { if (e.key === 'ArrowRight') { sfx('next'); nextQ() } }
     }
     q.o.forEach((t, j) => {
       const b = btn('', () => {
         if (locked) return
-        if (q.k === 'ms') { if (picked.has(j)) picked.delete(j); else picked.add(j); b.classList.toggle('sel'); b.setAttribute('aria-pressed', String(picked.has(j))); hint.textContent = '' } else answer(new Set([j]))
+        if (q.k === 'ms') { if (picked.has(j)) picked.delete(j); else picked.add(j); b.classList.toggle('sel'); sfx('pick', picked.has(j) ? 7 : 2); b.setAttribute('aria-pressed', String(picked.has(j))); hint.textContent = '' } else answer(new Set([j]))
       }, 'opt')
       b.append(txt('span', 'k', 'ABCD'[j] ?? ''), txt('span', 't', t))
       opts.push(b); box.append(b)
@@ -499,6 +693,7 @@ function run(title: string, qs: Q[], timed: boolean, done: (ok: number, pts: num
         left--; tm.textContent = `${left} sn`
         tfill.style.width = `${(Math.max(0, left - 1) / 20) * 100}%`
         if (left <= 5) { tm.classList.add('warn'); tbar.classList.add('warn') }
+        if (left <= 5 && left > 0) sfx('tick', left)
         if (left === 5) say('Acele et, son 5 saniye!', 'wow', 2500)
         if (left <= 0) answer(new Set(), true)
       }, 1000)
@@ -523,4 +718,4 @@ function run(title: string, qs: Q[], timed: boolean, done: (ok: number, pts: num
 }
 
 console.log('%cCode Nova%c Konsolu açtın, tam bir kodcu gibisin!', 'background:#6a3df0;color:#fff;padding:2px 8px;border-radius:4px;font-weight:700', '')
-welcome()
+if (S.theme) welcome(); else themePick(welcome)
